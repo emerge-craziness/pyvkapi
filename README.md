@@ -1,11 +1,11 @@
 Что это такое?
 ==============
 
-Доступ ко всем существующим методам VK API из Python (3.x).  
-Модуль авторизации взят из пакета pypi vk.  
+Доступ ко всем существующим методам VK API из Python 3.x.  
+Copyleft: суть `get_new_access_token()` полностью позаимствована из [vk](https://github.com/dimka665/vk).  
 
-Пример использования
-====================
+Usage example
+=============
 ~~~python
 >>> from vkapi import VkApi
 >>> api = VkApi( login = None, password = None )
@@ -19,19 +19,16 @@ trying to get 'https://api.vk.com/method/audio.search?q=Grave&v=5.45&search_own=
 ~~~
 *And so on.*
 
-Что осталось сделать
-=================
+TODO
+====
+- proxy support
 - Хэндлинг исключений и ошибок API.
 - __parse_response( response ):  
-  o сделать класс под response (iterable, supscriptable, has `__str__` and `__repr__`).  
+  o класс под response (iterable, supscriptable, has `__str__' and `__repr__').  
   о в случае ошибки - кидать исключение (относится к предыдущему пункту).  
 - Красивый импорт (эстетика, все дела, да).
 - Пакет для pypi (кто этим занимался?)
 - Полностью осознать авторизацию.
-
-Зачем?
-======
-Проще было переписать. (с)
 
 License
 =======
