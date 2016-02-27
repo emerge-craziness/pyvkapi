@@ -59,13 +59,18 @@ class VkApi:
             self.token_expires_in = 0
             return ""
 
+        session = requests.Session()
+        session.headers['Accept'] = 'application/json'
+        session.headers['Content-Type'] = 'application/x-www-form-urlencoded'
+
+
         def get_form_action( html ):
             form_action = re.findall( '<form(?= ).* action="(.+)"', html )
             if form_action:
                 return form_action[0]
 
         def login():
-            response = self.s.get( LOGIN_URL )
+            response = session.get( LOGIN_URL, timeout = TIMEOUT )
             login_form_action = get_form_action( response.text )
             if not login_form_action:
                 raise Exception('VK changed login flow')
@@ -75,10 +80,10 @@ class VkApi:
                 "pass": self.PASSWORD
             }
             
-            response = self.s.post( login_form_action, login_form_data )
+            response = session.post( login_form_action, data = login_form_data, timeout = TIMEOUT )
             response_url_query = get_url_query( response.url )
 
-            if 'remixsid' in self.s.cookies or 'remixsid6' in self.s.cookies:
+            if 'remixsid' in session.cookies or 'remixsid6' in session.cookies:
                 return
 
             if 'sid' in response_url_query:
@@ -101,14 +106,14 @@ class VkApi:
                 'v': self.V,
                 'lang': self.LANG
             }
-            response = self.s.post( AUTHORIZE_URL, auth_data, timeout = TIMEOUT )
+            response = session.post( AUTHORIZE_URL, auth_data, timeout = TIMEOUT )
             response_url_query = get_url_query( response.url )
             if 'access_token' in response_url_query:
                 return response_url_query
             
             form_action = get_form_action( response.text )
             if form_action:
-                response = self.s.get( form_action, timeout = TIMEOUT )
+                response = session.get( form_action, timeout = TIMEOUT )
                 response_url_query = get_url_query( response.url )
                 return response_url_query
 
