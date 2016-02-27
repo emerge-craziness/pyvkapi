@@ -23,8 +23,8 @@ TODO
 ====
 - proxy support
 - Хэндлинг исключений и ошибок API.
-- __parse_response( response ):  
-  o класс под response (iterable, supscriptable, has `__str__' and `__repr__').  
+- `__parse_response( response )`:  
+  o класс под response (iterable, supscriptable, has `__str__` and `__repr__`).  
   о в случае ошибки - кидать исключение (относится к предыдущему пункту).  
 - Красивый импорт (эстетика, все дела, да).
 - Пакет для pypi (кто этим занимался?)
