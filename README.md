@@ -1,7 +1,7 @@
 Что это такое?
 ==============
 
-Доступ ко всем существующим методам VK API из Python 3.x.  
+Доступ ко всем [существующим методам](https://vk.com/dev/methods) VK API из Python 3.x.  
 Copyleft: суть `get_new_access_token()` полностью позаимствована из [vk](https://github.com/dimka665/vk).  
 
 Usage example
