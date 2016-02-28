@@ -1,4 +1,4 @@
-import requests, re, json
+import requests, re, json, time
 from urllib.parse import urlparse, parse_qsl, urlencode
 from sys import stderr
 from datetime import datetime
@@ -11,9 +11,25 @@ def log( *msgs, end = "\n", sep = " ", flush = True ):
         if flush: stderr.flush()
 
 class VkApiException( Exception ):
-    pass
+    def __init__( self, exception ):
+        self.code = exception['error_code']
+        self.message = exception['error_msg']
+        self.request_params = exception['request_params']
+    def __str__( self ):
+        return "VkApiException #{code}: {msg}. Request parameters: {params}\n".format(
+                        code = self.code,
+                        msg = self.message,
+                        params = json.dumps( self.request_params, indent = 4, ensure_ascii = False )
+                )
+
+    def __repr__( self ):
+        return self.__str__()
 
 class IntermediateApiMethodsClass:
+    pass
+
+def loop_errors_handler( func, timeout = 0.1, number_of_tries = 10 ):
+    # TODO move here the ideas from lines 66, 123
     pass
 
 class VkApi:
@@ -23,12 +39,23 @@ class VkApi:
         self.s.headers['Content-Type'] = 'application/x-www-form-urlencoded'
 
         self.V = 5.45
-        self.LANG = kwargs.pop( 'lang', 'ru' )
-        self.SCOPE = kwargs.pop( 'scope', 'wall,messages,friends,audio' )
+        self.LANG = kwargs.pop( 'lang', 'ru' ).lower()
+        self.SCOPE = ''.join( kwargs.pop( 'scope', 'wall,messages,friends,audio' ).split() )
         self.APP_ID = kwargs.pop( 'app_id', 3682744 )
         self.LOGIN = kwargs.pop( 'login', None )
         self.LOGIN = kwargs.pop( 'email', self.LOGIN )
         self.PASSWORD = kwargs.pop( 'password', None )
+
+        # TODO implement self.captcha_solver(): handy and rucaptcha 
+        if 'rucaptcha_key' in kwargs:
+            from rucaptcha import RUCaptcha
+            rucaptcha = RUCaptcha( apikey = kwargs.pop( 'rucaptcha_key' ) )
+            # def __rucaptcha_solve( self, image ):
+            #   pass
+            # self.captcha_solver = __rucaptcha_solve
+
+        # remove any whitespaces
+        if self.LOGIN: self.LOGIN = ''.join( self.LOGIN.split() )
 
         self.ACCESS_TOKEN = kwargs.pop( 'access_token', None )
         if self.ACCESS_TOKEN:
@@ -37,21 +64,47 @@ class VkApi:
 
         def callable_method( self, method_name ):
             def method( **params ):
-                return self.__parse_response( self.__call_method( method_name, params ) )
+                for i in range( 2 + params.pop( 'number_of_tries', 10 ) ):
+                    if i > 0: log( "method %s iteration %i" % (method_name, i) )
+                    try:
+                        response = self.__call_method( method_name, params )
+                        return self.__parse_response( response )
+                    except VkApiException as e:
+                        if e.code in (6, 9): 
+                            # "too many requests per second"
+                            # or "too much captcha requests"
+                            timeout = params.get( 'timeout', 2 )
+                            log( "Sleeping for {s}s due to #{code}: {msg}".format( 
+                                s = timeout * (2 + i ** 2),
+                                code = e.code,
+                                msg = e.message
+                             ) )
+                            time.sleep( timeout * (2 + i ** 2) )
+                        else:
+                            log( "Catched %s" % e )
+                    except requests.exceptions.ReadTimeout as e:
+                        params['timeout'] = params.get( 'timeout', 2 ) * 2
+                        log( '%s catched. Increasing timeout 2 times, %ss now' % (e, params['timeout']) )
+                    except requests.exceptions.ReadTimeout as e:
+                        log( '%s catched. Sleeping for %ss' % (e, timeout * (2 + i ** 2) ) )
+                    except Exception as e:
+                        log( "%s catched, type = %s. Raising" % (e, type( e )) )
+                        raise e
+
             return method
 
         from methods import methods
         for higher in methods:
             self.__setattr__( higher, IntermediateApiMethodsClass() )
             for lower in methods[higher]:
-                self.__getattribute__( higher ).__setattr__( lower, callable_method( self, "%s.%s" % ( higher, lower ) ) )
+                self.__getattribute__( higher ).__setattr__( lower, callable_method( self, '.'.join( ( higher, lower ) ) ) )
 
-    def get_new_access_token( self ):
+    # Origins: https://github.com/dimka665/vk/tree/master/vk, 26.02.2016
+    def get_new_access_token( self, timeout = 2, number_of_tries = 10 ):
+        TIMEOUT = timeout
         LOGIN_URL = 'https://m.vk.com'
         AUTHORIZE_URL = 'https://oauth.vk.com/authorize'
         CAPTCHA_URI = 'https://m.vk.com/captcha.php'
-
-        TIMEOUT = 0.1 # seconds
 
         if None in ( self.LOGIN, self.PASSWORD ):
             self.ACCESS_TOKEN = ""
@@ -63,14 +116,30 @@ class VkApi:
         session.headers['Accept'] = 'application/json'
         session.headers['Content-Type'] = 'application/x-www-form-urlencoded'
 
-
         def get_form_action( html ):
             form_action = re.findall( '<form(?= ).* action="(.+)"', html )
             if form_action:
                 return form_action[0]
 
-        def login():
-            response = session.get( LOGIN_URL, timeout = TIMEOUT )
+        def timeout_handler( func, timeout = TIMEOUT ):
+            def _f( timeout = timeout ):
+                for i in range( number_of_tries ):
+                    if i > 0: log( "iteration %i" % i )
+                    try:
+                        return func( timeout )
+                    except requests.exceptions.ReadTimeout as e:
+                        timeout = timeout * 2
+                        log( '%s catched. Increasing timeout 2 times, %ss now' % (e, timeout ) )
+                        time.sleep( 0.2 )
+                    except requests.exceptions.ConnectionError as e:
+                        timeout = timeout * 2
+                        log( '%s catched. Increasing timeout 2 times, %ss now, and sleeping for %ss' % (e, timeout, 1 + i * timeout) )
+                        time.sleep( 0.2 )
+            return _f
+
+        @timeout_handler
+        def login( timeout ):
+            response = session.get( LOGIN_URL, timeout = timeout )
             login_form_action = get_form_action( response.text )
             if not login_form_action:
                 raise Exception('VK changed login flow')
@@ -80,7 +149,7 @@ class VkApi:
                 "pass": self.PASSWORD
             }
             
-            response = session.post( login_form_action, data = login_form_data, timeout = TIMEOUT )
+            response = session.post( login_form_action, data = login_form_data, timeout = timeout )
             response_url_query = get_url_query( response.url )
 
             if 'remixsid' in session.cookies or 'remixsid6' in session.cookies:
@@ -97,7 +166,8 @@ class VkApi:
         
             return oauth2_authorization()['access_token']
 
-        def oauth2_authorization():
+        @timeout_handler
+        def oauth2_authorization( timeout ):
             auth_data = {
                 'client_id': self.APP_ID,
                 'display': 'mobile',
@@ -106,14 +176,14 @@ class VkApi:
                 'v': self.V,
                 'lang': self.LANG
             }
-            response = session.post( AUTHORIZE_URL, auth_data, timeout = TIMEOUT )
+            response = session.post( AUTHORIZE_URL, auth_data, timeout = timeout )
             response_url_query = get_url_query( response.url )
             if 'access_token' in response_url_query:
                 return response_url_query
             
             form_action = get_form_action( response.text )
             if form_action:
-                response = session.get( form_action, timeout = TIMEOUT )
+                response = session.get( form_action, timeout = timeout )
                 response_url_query = get_url_query( response.url )
                 return response_url_query
 
@@ -131,7 +201,7 @@ class VkApi:
         login()
         auth_response_url_query = oauth2_authorization()
         
-        log( auth_response_url_query )
+        # log( auth_response_url_query )
         if 'access_token' in auth_response_url_query:
             self.token_birth = datetime.now()
             self.ACCESS_TOKEN = auth_response_url_query['access_token']
@@ -154,13 +224,16 @@ class VkApi:
             params_string += "%s=%s&" % ( key, value )
             
         url = BASE_URL + ("/%s?" % name) + params_string
-        log( "trying to get '%s'" % url )
         try: return self.s.get( url, timeout = timeout ).json()
         except Exception as e: log( "Catched an error: %s" % e )
 
     def __parse_response( self, response ):
-        # TODO check answer
-        return response
+        try: 
+            return response['response']
+        except: 
+            try: exception = VkApiException( response['error'] )
+            except Exception as e: exception = e
+        raise exception
 
 if __name__ == "__main__":
     api = VkApi( login = None, password = None )
