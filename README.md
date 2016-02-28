@@ -22,7 +22,7 @@ trying to get 'https://api.vk.com/method/audio.search?q=Grave&v=5.45&search_own=
 TODO
 ====
 - proxy support
-- Хэндлинг исключений и ошибок API.
+- Хэндлинг исключений и ошибок API (включая капчу).
 - `__parse_response( response )`:  
   o класс под response (iterable, supscriptable, has `__str__` and `__repr__`).  
   о в случае ошибки - кидать исключение (относится к предыдущему пункту).  
