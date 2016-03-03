@@ -46,7 +46,9 @@ class VkApi:
         self.LOGIN = kwargs.pop( 'email', self.LOGIN )
         self.PASSWORD = kwargs.pop( 'password', None )
 
-        # TODO implement self.captcha_solver(): handy and rucaptcha 
+        # possible modes: input, rucaptcha, lastmessage
+        kwargs.pop( 'captcha_mode', 'manual' )
+        # TODO implement self.captcha_solver(): and rucaptcha 
         if 'rucaptcha_key' in kwargs:
             from rucaptcha import RUCaptcha
             rucaptcha = RUCaptcha( apikey = kwargs.pop( 'rucaptcha_key' ) )
@@ -72,7 +74,7 @@ class VkApi:
                     except VkApiException as e:
                         if e.code in (6, 9): 
                             # "too many requests per second"
-                            # or "too much captcha requests"
+                            # "too much captcha requests"
                             timeout = params.get( 'timeout', 2 )
                             log( "Sleeping for {s}s due to #{code}: {msg}".format( 
                                 s = timeout * (2 + i ** 2),
@@ -81,7 +83,7 @@ class VkApi:
                              ) )
                             time.sleep( timeout * (2 + i ** 2) )
                         else:
-                            log( "Catched %s" % e )
+                            raise e
                     except requests.exceptions.ReadTimeout as e:
                         params['timeout'] = params.get( 'timeout', 2 ) * 2
                         log( '%s catched. Increasing timeout 2 times, %ss now' % (e, params['timeout']) )
