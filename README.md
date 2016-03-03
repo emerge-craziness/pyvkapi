@@ -2,7 +2,7 @@
 ==============
 
 Доступ ко всем [существующим методам](https://vk.com/dev/methods) VK API из Python 3.x.  
-Copyleft: суть `get_new_access_token()` полностью позаимствована из [vk](https://github.com/dimka665/vk).  
+Суть `get_new_access_token()` позаимствована из [vk](https://github.com/dimka665/vk).  
 
 Usage example
 =============
@@ -19,17 +19,22 @@ trying to get 'https://api.vk.com/method/audio.search?q=Grave&v=5.45&search_own=
 ~~~
 *And so on.*
 
-TODO
+TODO 
 ====
+Importance-increasing order  
+
+- refactor: encapsulate the members not supposed to be public
 - proxy support
-- Хэндлинг исключений и ошибок API (включая капчу).
-- `__parse_response( response )`:  
-  o класс под response (iterable, supscriptable, has `__str__` and `__repr__`).  
-  о в случае ошибки - кидать исключение (относится к предыдущему пункту).  
-- Красивый импорт (эстетика, все дела, да).
-- Пакет для pypi (кто этим занимался?)
-- Полностью осознать авторизацию.
+- decorator `loop_errors_handler() # line 31`
+- captcha handling
+- edit README.md accordingly
+- pypi package
+- realize the authorization
 
 License
 =======
 **lGPL**
+
+Contribution
+============
+You're welcome
